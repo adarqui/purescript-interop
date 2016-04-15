@@ -106,6 +106,8 @@ defaultJsonTagNameTransformClean nb s = s
 --------------------------------------------------------------------------------
 
 data InternalRep
+-- TODO FIXME: turn Normal's into String (Maybe String), for empty constructors
+--
   = NewtypeRecIR String [(String, String)]
   | NewtypeNormalIR String String
   | DataIR String [InternalRep]
