@@ -77,7 +77,7 @@ defaultOptionsClean = InteropOptions {
   fieldNameTransform = defaultFieldNameTransformClean,
   jsonNameTransform = defaultJsonNameTransformClean,
   jsonTagNameTransform = defaultJsonTagNameTransformClean,
-  createLenses = False,
+  createLenses = True,
   codec = CodecJSON,
   indent = 2
 }
@@ -139,6 +139,9 @@ mkExports rev InteropOptions{..} out ts = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
     return $ mkExport dec
+          ++ if createLenses
+               then "\n\n" ++ mkLenses dec ++ "\n\n"
+               else ""
           ++ if json
                then "\n\n" ++ mkToJson dec ++ "\n\n" ++ mkFromJson dec
                else ""
@@ -158,6 +161,14 @@ mkExports rev InteropOptions{..} out ts = do
   return [exportsDec]
 
     where
+
+      mkLenses (NewtypeD _ n tyvars con _)
+        = "_" ++ nameBase n ++ " :: LensP " ++ nameBase n ++ " "
+        ++ mkCon' (nameBase n) con
+        ++ "\n"
+        ++ "_" ++ nameBase n ++ " f (" ++ nameBase n ++ " o) = " ++ nameBase n ++ " <$> f o"
+      mkLenses _ = ""
+
       mkExport (NewtypeD _ n tyvars con _)
         = "newtype " ++ nameBase n ++ " " ++ intercalate " " (map mkTyVar tyvars) ++ " = "
         ++ mkCon (nameBase n) con
@@ -170,6 +181,9 @@ mkExports rev InteropOptions{..} out ts = do
 
       mkCon nb (RecC n vars) = nameBase n ++ " {\n" ++ intercalate ",\n" (map (mkVar nb) vars) ++ "\n}"
       mkCon nb (NormalC n vars) = nameBase n ++ " " ++ intercalate " " (map mkVar' vars) ++ "\n"
+
+      mkCon' nb (RecC n vars) = "{\n" ++ intercalate ",\n" (map (mkVar nb) vars) ++ "\n}"
+      mkCon' nb _ = "{}"
 
       mkVar nb (n, _, t) = "  " ++ fieldNameTransform nb (nameBase n) ++ " :: " ++ mkType t
       mkVar' (_, t) = mkType t
@@ -442,6 +456,8 @@ commonPurescriptImports = intercalate "\n"
   , "import Data.List (List ())"
   , "import Data.Tuple"
   , "import Data.Set (Set ())"
+  , "import Optic.Lens"
+  , "import Optic.Core"
   , "import Control.Monad.Aff"
   , "import Prelude"
   , ""
