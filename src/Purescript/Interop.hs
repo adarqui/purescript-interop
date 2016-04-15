@@ -138,13 +138,14 @@ mkExports :: Int -> InteropOptions -> Maybe (String, String, FilePath) -> [(Name
 mkExports rev InteropOptions{..} out ts = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
-    return $ mkExport dec
-          ++ if createLenses
-               then "\n\n" ++ mkLenses dec ++ "\n\n"
-               else ""
-          ++ if json
-               then "\n\n" ++ mkToJson dec ++ "\n\n" ++ mkFromJson dec
-               else ""
+    return $
+      mkExport dec
+      ++ (if createLenses
+           then "\n\n" ++ mkLenses dec ++ "\n\n"
+           else "")
+      ++ (if json
+           then "\n\n" ++ mkToJson dec ++ "\n\n" ++ mkFromJson dec
+           else "")
 
   let exports' = commonPurescriptImports ++ intercalate "\n\n" exports
       handleAll :: SomeException -> IO ()
@@ -174,7 +175,7 @@ mkExports rev InteropOptions{..} out ts = do
         ++ mkCon (nameBase n) con
       mkExport (DataD _ n tyvars cons _)
         = "data " ++ nameBase n ++ " " ++ intercalate " " (map mkTyVar tyvars) ++ " = "
-        ++ intercalate "|\n" (map (mkCon (nameBase n)) cons)
+        ++ intercalate "  | " (map (mkCon (nameBase n)) cons)
       mkExport (TySynD n tyvars t)
         = "type " ++ nameBase n ++ " " ++ intercalate " " (map mkTyVar tyvars) ++ " = "
         ++ mkType t
@@ -183,7 +184,7 @@ mkExports rev InteropOptions{..} out ts = do
       mkCon nb (NormalC n vars) = nameBase n ++ " " ++ intercalate " " (map mkVar' vars) ++ "\n"
 
       mkCon' nb (RecC n vars) = "{\n" ++ intercalate ",\n" (map (mkVar nb) vars) ++ "\n}"
-      mkCon' nb _ = "{}"
+      mkCon' nb _ = "{ empty :: Boolean }"
 
       mkVar nb (n, _, t) = "  " ++ fieldNameTransform nb (nameBase n) ++ " :: " ++ mkType t
       mkVar' (_, t) = mkType t
