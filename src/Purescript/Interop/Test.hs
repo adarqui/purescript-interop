@@ -10,6 +10,7 @@ newtype Session = Session { unSession :: String }
 
 mkExports defaultOptions Nothing [ (''Session, True) ] 0
 mkExports defaultOptions (Just ("header", "footer", "/tmp/interop1.purs")) [ (''Session, True) ] 1
+mkExports defaultOptionsClean (Just ("header", "footer", "/tmp/interop1.clean.purs")) [ (''Session, True) ] 101
 
 
 
@@ -23,17 +24,19 @@ data SumType
   | G [SumType]
 
 mkExports defaultOptions (Just ("header", "footer", "/tmp/interop2.purs")) [ (''SumType, True) ] 2
+mkExports defaultOptionsClean (Just ("header", "footer", "/tmp/interop2.clean.purs")) [ (''SumType, True) ] 102
 
 
 
 data BigRecord = BigRecord {
-  fBool :: Bool,
-  fInt :: Int,
-  fMaybeInt :: Maybe Int,
-  fInteger :: Integer,
-  fMaybeInteger :: Maybe Integer,
-  fString :: String,
-  fSumType :: SumType
+  bigRecordBool :: Bool,
+  bigRecordInt :: Int,
+  bigRecordMaybeInt :: Maybe Int,
+  bigRecordInteger :: Integer,
+  bigRecordMaybeInteger :: Maybe Integer,
+  bigRecordString :: String,
+  bigRecordSumType :: SumType
 }
 
 mkExports defaultOptions (Just ("header", "footer", "/tmp/interop3.purs")) [ (''BigRecord, True) ] 3
+mkExports defaultOptionsClean (Just ("header", "footer", "/tmp/interop3.clean.purs")) [ (''BigRecord, True) ] 103

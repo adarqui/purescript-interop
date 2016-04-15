@@ -1,5 +1,8 @@
 flags: {}
 packages:
 - '.'
-extra-deps: []
+- location:
+    git: https://github.com/adarqui/restyle.git
+    commit: 3969a0ba5fa98ef41772309ace0db91f99156363
+extra-deps: [restyle-0.1.0]
 resolver: lts-5.8
