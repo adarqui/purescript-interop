@@ -102,6 +102,19 @@ defaultJsonNameTransformClean nb s =
 defaultJsonTagNameTransformClean :: StringTransformFn
 defaultJsonTagNameTransformClean nb s = s
 
+
+--------------------------------------------------------------------------------
+
+data InternalRep
+  = NewtypeRecIR String [(String, String)]
+  | NewtypeNormalIR String String
+  | DataIR String [InternalRep]
+  | DataRecIR String [(String, String)]
+  | DataNormalIR String String
+  | TypeIR String String
+  | EmptyIR
+  deriving (Show)
+
 --------------------------------------------------------------------------------
 
 -- name, args, hash
@@ -138,8 +151,11 @@ mkExports :: Int -> InteropOptions -> Maybe (String, String, FilePath) -> [(Name
 mkExports rev InteropOptions{..} out ts = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
+    let ir = parseInternalRep dec
     return $
       mkExport dec
+      ++ show ir
+      ++ "\n\n" ++ mkBuilder dec ++ "\n\n"
       ++ (if createLenses
            then "\n\n" ++ mkLenses dec ++ "\n\n"
            else "")
@@ -163,12 +179,47 @@ mkExports rev InteropOptions{..} out ts = do
 
     where
 
+      parseInternalRep (NewtypeD _ n tyvars con _) = mkConNewtypeIR (nameBase n) con
+      parseInternalRep (DataD _ n tyvars cons _) = DataIR (nameBase n) $ map (mkConDataIR (nameBase n)) cons
+      parseInternalRep (TySynD n tyvars t) = TypeIR (nameBase n) (mkTypeIR t)
+      parseInternalRep _ = EmptyIR
+
+      mkConNewtypeIR nb (RecC n vars) = NewtypeRecIR nb (map (mkVarIR nb) vars)
+      mkConNewtypeIR nb (NormalC n vars) = NewtypeNormalIR (nameBase n) (intercalate " " (map mkVarIR' vars))
+      mkConNewtypeIR nb _ = EmptyIR
+
+      mkConDataIR nb (RecC n vars) = DataRecIR nb (map (mkVarIR nb) vars)
+      mkConDataIR nb (NormalC n vars) = DataNormalIR (nameBase n) (intercalate " " (map mkVarIR' vars))
+      mkConDataIR nb _ = EmptyIR
+
+      mkVarIR nb (n, _, t) = (fieldNameTransform nb (nameBase n), mkTypeIR t)
+      mkVarIR' (_, t) = mkTypeIR t
+
+      mkTypeIR (ConT n) | nameBase n == "Set" = "Array"
+                      | nameBase n == "Bool" = "Boolean"
+      mkTypeIR (ConT n) = nameBase n
+      mkTypeIR (VarT a) = takeWhile (/= '_') $ nameBase a
+      mkTypeIR (AppT f x) = "(" ++ mkType f ++ " " ++ mkTypeIR x ++ ")"
+      mkTypeIR (TupleT 0) = "Unit "
+      mkTypeIR (TupleT 2) = "Tuple "
+      mkTypeIR (TupleT n) = "Tuple" ++ show n ++ " "
+      mkTypeIR ListT = "Array "
+
+      mkTyVarIR (PlainTV n) = nameBase n
+      mkTyVarIR (KindedTV n _) = nameBase n
+
       mkLenses (NewtypeD _ n tyvars con _)
         = "_" ++ nameBase n ++ " :: LensP " ++ nameBase n ++ " "
         ++ mkCon' (nameBase n) con
         ++ "\n"
         ++ "_" ++ nameBase n ++ " f (" ++ nameBase n ++ " o) = " ++ nameBase n ++ " <$> f o"
       mkLenses _ = ""
+
+      mkBuilder (NewtypeD _ n tyvars con _)
+        =  "mk" ++ nameBase n ++ " :: " ++ "\n"
+        ++ "mk" ++ nameBase n ++ " .. " ++ "\n"
+        ++ "  { ... }"
+      mkBuilder _ = ""
 
       mkExport (NewtypeD _ n tyvars con _)
         = "newtype " ++ nameBase n ++ " " ++ intercalate " " (map mkTyVar tyvars) ++ " = "

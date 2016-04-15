@@ -27,18 +27,30 @@ data BigRecord = BigRecord {
 
 newtype DateMaybe = DateMaybe (Maybe String)
 
+type Text = String
+
+type TextMaybe = Maybe Text
+
+
+
 mkExports 1 defaultOptions (Just ("header", "footer", "/tmp/interop1.purs"))
   [
     (''Session, True),
     (''SumType, True),
     (''BigRecord, True),
-    (''DateMaybe, True)
+    (''DateMaybe, True),
+    (''Text, False),
+    (''TextMaybe, False)
   ]
+
+
 
 mkExports 2 defaultOptionsClean (Just ("header", "footer", "/tmp/interop1.clean.purs"))
   [
     (''Session, True),
     (''SumType, True),
     (''BigRecord, True),
-    (''DateMaybe, True)
+    (''DateMaybe, True),
+    (''Text, False),
+    (''TextMaybe, False)
   ]
