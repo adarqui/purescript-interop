@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS -ddump-splices #-}
 
 module Purescript.Interop where
@@ -11,6 +12,7 @@ import Language.Haskell.TH.Syntax
 import Control.Exception
 import Control.Monad
 
+import Data.Monoid
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Aeson.Types
@@ -30,8 +32,67 @@ instance Lift Type where
 
 --------------------------------------------------------------------------------
 
+data Codec
+  = PurescriptJSON
+  | PurescriptArgonaut
+  deriving (Show)
+
+type StringTransformFn = String -> String
+
+data InteropOptions = InteropOptions {
+  fieldNameTransform :: StringTransformFn,
+  jsonNameTransform :: StringTransformFn,
+  jsonTagNameTransform :: StringTransformFn,
+  createLenses :: Bool,
+  codec :: Codec,
+  indent :: Int
+}
+
+defaultOptions :: InteropOptions
+defaultOptions = InteropOptions {
+  fieldNameTransform = defaultFieldNameTransform,
+  jsonNameTransform = defaultJsonNameTransform,
+  jsonTagNameTransform = defaultJsonTagNameTransform,
+  createLenses = False,
+  codec = PurescriptJSON,
+  indent = 2
+}
+
+defaultFieldNameTransform :: StringTransformFn
+defaultFieldNameTransform = id
+
+defaultJsonNameTransform :: StringTransformFn
+defaultJsonNameTransform = id
+
+defaultJsonTagNameTransform :: StringTransformFn
+defaultJsonTagNameTransform = id
+
+
+
+defaultOptionsClean :: InteropOptions
+defaultOptionsClean = InteropOptions {
+  fieldNameTransform = defaultFieldNameTransformClean,
+  jsonNameTransform = defaultJsonNameTransformClean,
+  jsonTagNameTransform = defaultJsonTagNameTransformClean,
+  createLenses = False,
+  codec = PurescriptJSON,
+  indent = 2
+}
+
+defaultFieldNameTransformClean :: StringTransformFn
+defaultFieldNameTransformClean = id
+
+defaultJsonNameTransformClean :: StringTransformFn
+defaultJsonNameTransformClean = id
+
+defaultJsonTagNameTransformClean :: StringTransformFn
+defaultJsonTagNameTransformClean = id
+
+--------------------------------------------------------------------------------
+
 -- name, args, hash
 type API = [(String, [Type], String)]
+
 
 type SerAPI = [(String, String)]
 
@@ -49,8 +110,8 @@ parseCall (Object o) = do
   return (call, version, args)
 parseCall _ = fail "Could not parse RPC call"
 
-mkExports :: Maybe (String, String, FilePath) -> [(Name, Bool)] -> Q [Dec]
-mkExports out ts = do
+mkExports :: InteropOptions -> Maybe (String, String, FilePath) -> [(Name, Bool)] -> Int -> Q [Dec]
+mkExports InteropOptions{..} out ts rev = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
     return $ mkExport dec
@@ -62,7 +123,7 @@ mkExports out ts = do
       handleAll :: SomeException -> IO ()
       handleAll _ = return ()
 
-  exportsDec <- valD (varP $ mkName "rpcExports")
+  exportsDec <- valD (varP $ mkName $ "rpcExports_" <> show rev)
                      (normalB $ litE $ stringL exports')
                      []
 
@@ -132,13 +193,13 @@ mkExports out ts = do
 
       mkConToJson (RecC n vars) = concat
         [ "  toJSON (" ++ nameBase n ++ " v) = object $\n"
-        , "    [ \"tag\" .= \"" ++ nameBase n ++ "\"\n"
+        , "    [ \"tag\" .= \"" ++ jsonTagNameTransform (nameBase n) ++ "\"\n"
         , concatMap mkVarToJson vars
         , "    ]\n"
         ]
       mkConToJson (NormalC n vars) = concat
         [ "  toJSON (" ++ nameBase n ++ " " ++ intercalate " " vars' ++ ") = object $\n"
-        , "    [ \"tag\" .= \"" ++ nameBase n ++ "\"\n"
+        , "    [ \"tag\" .= \"" ++ jsonTagNameTransform (nameBase n) ++ "\"\n"
         , if null vars
             then "    , \"contents\" .= ([] :: Array String)\n"
             else "    , \"contents\" .= " ++ wrapContent vars (intercalate ", " (map ("toJSON " ++) vars')) ++ "\n"
@@ -150,7 +211,7 @@ mkExports out ts = do
       wrapContent vars str | length vars == 1 = str
                            | otherwise        = "[" ++ str ++ "]"
 
-      mkVarToJson (n, _, _) = "    , \"" ++ nameBase n ++ "\" .= v." ++ nameBase n ++ "\n"
+      mkVarToJson (n, _, _) = "    , \"" ++ jsonNameTransform (nameBase n) ++ "\" .= v." ++ fieldNameTransform (nameBase n) ++ "\n"
 
       -- FromJSON deriving
 
@@ -200,7 +261,7 @@ mkExports out ts = do
         [ if useCase then "      \"" ++ nameBase n ++ "\" -> do\n" else ""
         , concatMap mkVarFromJson vars
         , "        return $ " ++ nameBase n ++ " { "
-        , intercalate ", " $ map (\(n, _, _) -> nameBase n ++ " : " ++ nameBase n) vars
+        , intercalate ", " $ map (\(n, _, _) -> fieldNameTransform (nameBase n) ++ " : " ++ fieldNameTransform (nameBase n)) vars
         , " }\n"
         ]
       mkConFromJson useCase (NormalC n vars) = concat
@@ -215,7 +276,7 @@ mkExports out ts = do
         ]
         where vars' = map (("x" ++) . show) [0..length vars - 1]
 
-      mkVarFromJson (n, _, _) = "        " ++ nameBase n ++ " <- o .: \"" ++ nameBase n ++ "\"\n"
+      mkVarFromJson (n, _, _) = "        " ++ fieldNameTransform (nameBase n) ++ " <- o .: \"" ++ jsonNameTransform (nameBase n) ++ "\"\n"
 
 mkRPC :: Bool -> [Name] -> Q [Dec]
 mkRPC checkver fs = do
