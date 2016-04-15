@@ -35,8 +35,9 @@ instance Lift Type where
 --------------------------------------------------------------------------------
 
 data Codec
-  = PurescriptJSON
-  | PurescriptArgonaut
+  = CodecJSON
+  | CodecArgonaut
+  | CodecNone
   deriving (Show)
 
 type StringTransformFn = String -> String -> String
@@ -56,18 +57,18 @@ defaultOptions = InteropOptions {
   jsonNameTransform = defaultJsonNameTransform,
   jsonTagNameTransform = defaultJsonTagNameTransform,
   createLenses = False,
-  codec = PurescriptJSON,
+  codec = CodecJSON,
   indent = 2
 }
 
 defaultFieldNameTransform :: StringTransformFn
-defaultFieldNameTransform nb s = nb ++ s
+defaultFieldNameTransform nb s = s
 
 defaultJsonNameTransform :: StringTransformFn
-defaultJsonNameTransform nb s = nb ++ s
+defaultJsonNameTransform nb s = s
 
 defaultJsonTagNameTransform :: StringTransformFn
-defaultJsonTagNameTransform nb s = nb ++ s
+defaultJsonTagNameTransform nb s = s
 
 
 
@@ -77,7 +78,7 @@ defaultOptionsClean = InteropOptions {
   jsonNameTransform = defaultJsonNameTransformClean,
   jsonTagNameTransform = defaultJsonTagNameTransformClean,
   createLenses = False,
-  codec = PurescriptJSON,
+  codec = CodecJSON,
   indent = 2
 }
 
@@ -131,8 +132,10 @@ firstToLower (x:xs) = toLower x:xs
 
 
 
-mkExports :: InteropOptions -> Maybe (String, String, FilePath) -> [(Name, Bool)] -> Int -> Q [Dec]
-mkExports InteropOptions{..} out ts rev = do
+-- rev is temporary
+--
+mkExports :: Int -> InteropOptions -> Maybe (String, String, FilePath) -> [(Name, Bool)] -> Q [Dec]
+mkExports rev InteropOptions{..} out ts = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
     return $ mkExport dec
