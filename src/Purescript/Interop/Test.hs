@@ -31,6 +31,11 @@ type Text = String
 
 type TextMaybe = Maybe Text
 
+data FunkyRecord
+  = Boom1 { boom1 :: Bool }
+  | Boom2 { boom2 :: Bool }
+  | Boom3 { boom3a :: Bool, boom3b :: Bool, boom3c :: Bool }
+  | Boom4
 
 
 mkExports 1 defaultOptions (Just ("header", "footer", "/tmp/interop1.purs"))
@@ -40,7 +45,8 @@ mkExports 1 defaultOptions (Just ("header", "footer", "/tmp/interop1.purs"))
     (''BigRecord, True),
     (''DateMaybe, True),
     (''Text, False),
-    (''TextMaybe, False)
+    (''TextMaybe, False),
+    (''FunkyRecord, True)
   ]
 
 
@@ -52,5 +58,6 @@ mkExports 2 defaultOptionsClean (Just ("header", "footer", "/tmp/interop1.clean.
     (''BigRecord, True),
     (''DateMaybe, True),
     (''Text, False),
-    (''TextMaybe, False)
+    (''TextMaybe, False),
+    (''FunkyRecord, True)
   ]

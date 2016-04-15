@@ -26,6 +26,8 @@ import Debug.Trace
 
 import Data.Transform.UnCamel
 
+import Text.Printf
+
 instance Lift Type where
   lift (ConT n) = [| ConT (mkName nstr) |] where nstr = show n
   lift (AppT a b) = [| AppT a b |]
@@ -34,10 +36,19 @@ instance Lift Type where
 
 --------------------------------------------------------------------------------
 
-data Codec
-  = CodecJSON
-  | CodecArgonaut
-  | CodecNone
+data Mk
+  = MkToJSON
+  | MkFromJSON
+  | MkUnwrap
+  | MkMk
+  | MkLens
+  | MkLensFields
+  | MkEncodeJson
+  | MkDecodeJson
+  | MkRequestable
+  | MkRespondable
+  | MkIsForeign
+  | MkNone
   deriving (Show)
 
 type StringTransformFn = String -> String -> String
@@ -46,8 +57,6 @@ data InteropOptions = InteropOptions {
   fieldNameTransform :: StringTransformFn,
   jsonNameTransform :: StringTransformFn,
   jsonTagNameTransform :: StringTransformFn,
-  createLenses :: Bool,
-  codec :: Codec,
   indent :: Int
 }
 
@@ -56,8 +65,6 @@ defaultOptions = InteropOptions {
   fieldNameTransform = defaultFieldNameTransform,
   jsonNameTransform = defaultJsonNameTransform,
   jsonTagNameTransform = defaultJsonTagNameTransform,
-  createLenses = False,
-  codec = CodecJSON,
   indent = 2
 }
 
@@ -77,8 +84,6 @@ defaultOptionsClean = InteropOptions {
   fieldNameTransform = defaultFieldNameTransformClean,
   jsonNameTransform = defaultJsonNameTransformClean,
   jsonTagNameTransform = defaultJsonTagNameTransformClean,
-  createLenses = True,
-  codec = CodecJSON,
   indent = 2
 }
 
@@ -147,14 +152,38 @@ firstToLower (x:xs) = toLower x:xs
 
 
 
+buildType :: Bool -> InteropOptions -> InternalRep -> String
+buildType label opts@InteropOptions{..} rep =
+  case rep of
+    NewtypeRecIR base fields ->
+         concat
+      $  [printf "newtype %s = %s {\n" base base]
+      ++ (map (\s -> s ++ "\n") $ intersperse "," $ map (\(n,t) -> printf "  %s :: %s" n t) fields)
+      ++ ["}\n"]
+    DataIR base reps ->
+         concat
+      $  (if label then [printf "data %s = " base] else [printf "  %s {" base])
+      ++ intersperse "  | " (map (buildType False opts) reps)
+    DataRecIR base fields ->
+         concat
+      $  (if label then [printf "data %s = %s {\n" base base] else [printf "%s {\n" base])
+      ++ (intersperse ",\n" $ map (\(n,t) -> printf "  %s :: %s" n t) fields) ++ ["\n"]
+      ++ ["}\n"]
+    _ -> ""
+
+
+
 -- rev is temporary
 --
 mkExports :: Int -> InteropOptions -> Maybe (String, String, FilePath) -> [(Name, Bool)] -> Q [Dec]
-mkExports rev InteropOptions{..} out ts = do
+mkExports rev opts@InteropOptions{..} out ts = do
   exports <- forM ts $ \(t, json) -> do
     TyConI dec <- reify t
     let ir = parseInternalRep dec
     return $
+      buildType True opts ir
+
+{-
       mkExport dec
       ++ show ir
       ++ "\n\n" ++ mkBuilder dec ++ "\n\n"
@@ -164,6 +193,7 @@ mkExports rev InteropOptions{..} out ts = do
       ++ (if json
            then "\n\n" ++ mkToJson dec ++ "\n\n" ++ mkFromJson dec
            else "")
+      -}
 
   let exports' = commonPurescriptImports ++ intercalate "\n\n" exports
       handleAll :: SomeException -> IO ()
@@ -182,6 +212,7 @@ mkExports rev InteropOptions{..} out ts = do
     where
 
       parseInternalRep (NewtypeD _ n tyvars con _) = mkConNewtypeIR (nameBase n) con
+--      parseInternalRep (DataD _ n tyvars cons _) = mkConDataIR (nameBase n) (map (mkConDataIR (nameBase n)) cons)
       parseInternalRep (DataD _ n tyvars cons _) = DataIR (nameBase n) $ map (mkConDataIR (nameBase n)) cons
       parseInternalRep (TySynD n tyvars t) = TypeIR (nameBase n) (mkTypeIR t)
       parseInternalRep _ = EmptyIR
