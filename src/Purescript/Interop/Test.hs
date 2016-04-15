@@ -40,3 +40,10 @@ data BigRecord = BigRecord {
 
 mkExports defaultOptions (Just ("header", "footer", "/tmp/interop3.purs")) [ (''BigRecord, True) ] 3
 mkExports defaultOptionsClean (Just ("header", "footer", "/tmp/interop3.clean.purs")) [ (''BigRecord, True) ] 103
+
+
+
+newtype DateMaybe = DateMaybe (Maybe String)
+
+mkExports defaultOptions (Just ("header", "footer", "/tmp/interop4.purs")) [ (''DateMaybe, True) ] 4
+mkExports defaultOptionsClean (Just ("header", "footer", "/tmp/interop4.clean.purs")) [ (''DateMaybe, True) ] 104

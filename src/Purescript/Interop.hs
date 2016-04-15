@@ -149,7 +149,7 @@ mkExports InteropOptions{..} out ts rev = do
                      []
 
   case out of
-    Just (header, footer, path) -> runIO $ handle handleAll $ writeFile path (header ++ exports' ++ footer)
+    Just (header, footer, path) -> runIO $ handle handleAll $ writeFile path (header ++ "\n\n" ++ exports' ++ "\n\n" ++ footer)
     Nothing -> return ()
 
   return [exportsDec]
@@ -210,13 +210,13 @@ mkExports InteropOptions{..} out ts rev = do
 
       mkConToJson nb (RecC n vars) = concat
         [ "  toJSON (" ++ nameBase n ++ " v) = object $\n"
-        , "    [ \"tag\" .= \"" ++ (jsonTagNameTransform nb (nameBase n)) ++ "\"\n"
+        , "    [ \"tag\" .= \"" ++ jsonTagNameTransform nb (nameBase n) ++ "\"\n"
         , concatMap (mkVarToJson nb) vars
         , "    ]\n"
         ]
       mkConToJson nb (NormalC n vars) = concat
         [ "  toJSON (" ++ nameBase n ++ " " ++ intercalate " " vars' ++ ") = object $\n"
-        , "    [ \"tag\" .= \"" ++ (jsonTagNameTransform nb (nameBase n)) ++ "\"\n"
+        , "    [ \"tag\" .= \"" ++ jsonTagNameTransform nb (nameBase n) ++ "\"\n"
         , if null vars
             then "    , \"contents\" .= ([] :: Array String)\n"
             else "    , \"contents\" .= " ++ wrapContent vars (intercalate ", " (map ("toJSON " ++) vars')) ++ "\n"
@@ -228,7 +228,7 @@ mkExports InteropOptions{..} out ts rev = do
       wrapContent vars str | length vars == 1 = str
                            | otherwise        = "[" ++ str ++ "]"
 
-      mkVarToJson nb (n, _, _) = "    , \"" ++ (jsonNameTransform nb (nameBase n)) ++ "\" .= v." ++ (fieldNameTransform nb (nameBase n)) ++ "\n"
+      mkVarToJson nb (n, _, _) = "    , \"" ++ jsonNameTransform nb (nameBase n) ++ "\" .= v." ++ (fieldNameTransform nb (nameBase n)) ++ "\n"
 
       -- FromJSON deriving
 
@@ -278,7 +278,7 @@ mkExports InteropOptions{..} out ts rev = do
         [ if useCase then "      \"" ++ nameBase n ++ "\" -> do\n" else ""
         , concatMap (mkVarFromJson nb) vars
         , "        return $ " ++ nameBase n ++ " { "
-        , intercalate ", " $ map (\(n, _, _) -> (fieldNameTransform nb (nameBase n)) ++ " : " ++ (fieldNameTransform nb (nameBase n))) vars
+        , intercalate ", " $ map (\(n, _, _) -> fieldNameTransform nb (nameBase n) ++ " : " ++ fieldNameTransform nb (nameBase n)) vars
         , " }\n"
         ]
       mkConFromJson nb useCase (NormalC n vars) = concat
@@ -293,7 +293,7 @@ mkExports InteropOptions{..} out ts rev = do
         ]
         where vars' = map (("x" ++) . show) [0..length vars - 1]
 
-      mkVarFromJson nb (n, _, _) = "        " ++ (fieldNameTransform nb (nameBase n)) ++ " <- o .: \"" ++ (jsonNameTransform nb (nameBase n)) ++ "\"\n"
+      mkVarFromJson nb (n, _, _) = "        " ++ fieldNameTransform nb (nameBase n) ++ " <- o .: \"" ++ jsonNameTransform nb (nameBase n) ++ "\"\n"
 
 mkRPC :: Bool -> [Name] -> Q [Dec]
 mkRPC checkver fs = do
